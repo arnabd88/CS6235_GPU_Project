@@ -1,0 +1,1 @@
+nvcc -Xcompiler -fopenmp --std=c++11 workListKernel.cu -I../../Gaol/gaol-4.2.0/gaol/.libs/ -L../../Gaol/gaol-4.2.0/gdtoa/.libs/ -I. -lgaol -lm -lultim -lgdtoa -lgomp
