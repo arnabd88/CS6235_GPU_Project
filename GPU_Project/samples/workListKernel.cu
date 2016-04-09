@@ -22,6 +22,8 @@
 
 using namespace std ;
 
+int syncFlag=0 ;
+
 __host__  __device__  float returnMax( float a, float b) { if(a > b) return a ; else   return b ; }
 __host__  __device__  float returnMix( float a, float b) { if(a < b) return a ; else   return b ; }
        //--- Returns the dimension which has the largest width
@@ -36,7 +38,8 @@ template <typename T> struct KernelArray { T* _array ; int _size ; } ;
 template <typename T> KernelArray<T> convertToKernel(thrust::device_vector<T>& dvec)
 { KernelArray<T> kArray ;
    kArray._array = thrust::raw_pointer_cast(&dvec[0]);
-   kArray._size  = (int) dvec.size(); return kArray ; } ;
+   kArray._size  = (int) dvec.size();
+   return kArray ; } ;
 
 
 //From script
@@ -60,11 +63,15 @@ __device__ float gpu_Func_expr ( float x, float y )
 
 __global__ void gpuKernel ( KernelArray<interval_gpu<float>> gpuMainQue, KernelArray<float> gpuPriQue, int dimension )
 {
-   printf("Testing ................\n");
+   //printf("Testing ................\n");
+
+ //  printf("ThreadId = %d,  Dimension = %d\n", threadIdx.x , dimension);
+   __syncthreads();
 }
 
 //ManageThreads.push_back(thread(gpuHandlerThread, gpuMainQue, gpuPriQue, dimension)) ; // Trigger the gpu thread
 void gpuHandlerThread ( KernelArray<interval_gpu<float>> gpuMainQue, KernelArray<float> gpuPriQue, int dimension) {
+	   printf("Debug: 7: Got called...\n");
        if(K*dimension > 512) {
 	      cout << "Reduce the K value" << endl ;
 	   }
@@ -74,6 +81,8 @@ void gpuHandlerThread ( KernelArray<interval_gpu<float>> gpuMainQue, KernelArray
 		   gpuKernel<<<dimGrid,dimBlock>>>(gpuMainQue, gpuPriQue, dimension) ;
 		   cudaDeviceSynchronize();
 	   }
+
+	   //syncFlag = 1 ;
 }
 
 			
@@ -82,7 +91,7 @@ int main()  {
    gaol::init();
    omp_set_num_threads(NUM_THREADS);
    int dimension  =  2  ;                 // From scipt  - defined by the problem
-   gaol::interval x_0(-5,7), x_1(0,5) ;   // From script - defined by the problem
+   gaol::interval x_0(0,5), x_1(-5,7) ;   // From script - defined by the problem
    //--- Data structure for the gpu ---
    thrust::device_vector<interval_gpu<float>> gpu_interval_list ;
    thrust::device_vector<float>               gpu_interval_priority ;
@@ -91,7 +100,7 @@ int main()  {
    KernelArray<float>                         gpuPriQue  ;             
 
    //--- Data structure for the cpu ---
-   float  fbest = numeric_limits<float>::max();
+   float  fbest = numeric_limits<float>::min();
    vector<gaol::interval> bestbbInt(dimension) ;
    deque<gaol::interval> MainQue ;
    deque<gaol::interval> TempQue ;
@@ -111,16 +120,18 @@ int main()  {
    gaol::interval FunctionBound ;
 
    //---- Initialise fbestTag --------
-   fbestTag.push_back(numeric_limits<float>::max()) ;
+   fbestTag.push_back(numeric_limits<float>::min()) ;
 
    //---- Get the priority of the starting interval ----
    gaol::interval PriTemp = cpu_Inclusion_Func_expr( (x_0.left() + x_0.right())/2 , (x_1.left() + x_1.right())/2 ) ;
    TempQue_priority.push_back(PriTemp.left()) ;
 
-   while( TempQue.size()!= 0  || MainQue.size()!=0 ) {
+   while( TempQue_priority.size()!= 0  || MainQue_priority.size()!=0 || ManageThreads.size()!=0) {
+	   printf("Debug: 6: Reached here: Temp_Queue_Size = %lu, Main_Queue_size = %lu\n", TempQue.size(), MainQue.size());
        cout << " Idiot!!... Terminate while :)...." << endl ;
-       if(ManageThreads.size() != 0) {   // gpu calls to be joined
+       if(syncFlag == 1 && ManageThreads.size() != 0) {   // gpu calls to be joined
 	       if(ManageThreads.front().joinable()) ManageThreads.front().join() ;
+		   syncFlag = 0 ;
 		   ManageThreads.pop_front() ;
 		   MainQue.clear() ;
 		   for(int i=0; i < gpu_interval_list.size()/dimension; i++) {   // translate gpu return list to gaol
@@ -145,27 +156,28 @@ int main()  {
 	  }
 	  if( addedIntervalSize > CPU_THRESHOLD && ManageThreads.size()==0 ) {   // minimum number of new intervals to trigger gpu
               addedIntervalSize = 0 ;            // reset the interval counter
-			  for(int i=1; i<MainQue.size()/dimension; i++) {
+			  gpu_interval_list.clear();
+			  gpu_interval_priority.clear();
+			  for(int i=0; i<MainQue.size()/dimension; i++) {
 			     for(int j=0; j<dimension; j++) {
 				    interval_gpu<float> ij(MainQue[i*dimension+j].left(), MainQue[i*dimension+j].right()) ;
 					gpu_interval_list.push_back(ij) ;
+					//cout << " Enter here " << gpu_interval_list.size() << endl ;
 				 }
 				 gpu_interval_priority.push_back(MainQue_priority[i]) ;
-				 KernelArray<interval_gpu<float>> gpuMainQue = convertToKernel(gpu_interval_list);
-				 KernelArray<float> gpuPriQue                = convertToKernel(gpu_interval_priority);
-				 
 		      }
+				 /* KernelArray<interval_gpu<float>>*/ gpuMainQue = convertToKernel(gpu_interval_list);
+				 /* KernelArray<float>*/ gpuPriQue                = convertToKernel(gpu_interval_priority);
 		      ManageThreads.push_back(thread(gpuHandlerThread, gpuMainQue, gpuPriQue, dimension)) ; // Trigger the gpu thread
 	   }
        
 	   fbest = returnMax(fbest, fbestTag.front());
 	   X.clear(); X1.clear(); X2.clear(); Xi.clear();
 	   for(int i=0; i<dimension; i++) {
-	       X.push_back(MainQue.front()); MainQue.pop_front();
+	       X.push_back(MainQue.front()); MainQue.pop_front(); MainQue_priority.pop_front();
 	   }
 	   FunctionBound = cpu_Inclusion_Func_expr( X[0], X[1] ) ; // possibly from script
 	   if ( FunctionBound.right() < fbest  ||  X[IntervalWidth(X)].width() <= intervalEpsilon || FunctionBound.width() <= outputEpsilon ) {
-	       cout << "Get_Next_Element\n" << endl ;
 	   }
 	   else {
 	       for(int i=0; i<dimension; i++) {
@@ -187,7 +199,7 @@ int main()  {
 				   fbest = ei ;
 				   bestbbInt = Xi[i] ;
 				}
-			    for (int j=0; i< dimension; j++) {
+			    for (int j=0; j< dimension; j++) {
 				   TempQue.push_back(Xi[i][j]) ;
 				}
 				TempQue_priority.push_back(ei) ;
