@@ -20,7 +20,7 @@
 
 #define NEW_INTV_THRESHOLD 10
 #define CPU_THRESHOLD 4
-#define USE_GPU 0
+#define USE_GPU 1
 
 using namespace std ;
 
@@ -84,7 +84,7 @@ void gpuHandlerThread ( KernelArray<interval_gpu<float>> gpuMainQue, KernelArray
 		   cudaDeviceSynchronize();
 	   }
 
-	   //syncFlag = 1 ;
+	   syncFlag = 1 ;
 }
 
 			
@@ -145,7 +145,7 @@ int main()  {
 		   //MainQue.clear() ;
 		   printf("1. gpu_interval_list_size = %lu \n", gpu_interval_list.size());
 		   for(int i=0; i < gpu_interval_list.size()/dimension; i++) {   // translate gpu return list to gaol
-		       for(int j=0; j< dimension; j++) {
+		       for(int j=dimension-1; j>=0; j--) {
 			       interval_gpu<float> ij_gpu = gpu_interval_list[i*dimension + j] ;
 				   gaol::interval ij(ij_gpu.lower(), ij_gpu.upper());
 				   MainQue.push_front(ij) ;
@@ -154,14 +154,15 @@ int main()  {
                printf("Update-1: MainQue_priority = %lu \n", MainQue_priority.size());
 		   }
 	  }
-	  if(TempQue.size() != 0) {
+	  if((int)TempQue.size() != 0) {
 	     addedIntervalSize += TempQue_priority.size() ;
-	     for(int i=0; i<TempQue.size()/dimension; i++) {             // push the TempQue to the MainQue
+		 cout << " TempQue-Size = " << TempQue_priority.size() << endl ;
+	     for(int i=0; i<(int)TempQue.size()/dimension; i++) {             // push the TempQue to the MainQue
 	        for(int j=0; j < dimension; j++) {
 	           MainQue.push_back(TempQue[i*dimension+j]) ;
 	        }
 	   	 MainQue_priority.push_back(TempQue_priority[i]) ;
-         printf("Update-2: MainQue_priority = %lu \n", MainQue_priority.size());
+         printf("Update-2: MainQue_priority = %d \n", (int)MainQue_priority.size());
 	     }
 		 TempQue_priority.clear();
 		 TempQue.clear();
