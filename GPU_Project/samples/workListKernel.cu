@@ -18,7 +18,9 @@
 #define outputEpsilon   0.001 
 #define K  10 // Sampling number
 
+#define NEW_INTV_THRESHOLD 10
 #define CPU_THRESHOLD 4
+#define USE_GPU 0
 
 using namespace std ;
 
@@ -91,7 +93,7 @@ int main()  {
    gaol::init();
    omp_set_num_threads(NUM_THREADS);
    int dimension  =  2  ;                 // From scipt  - defined by the problem
-   gaol::interval x_0(0,5), x_1(-5,7) ;   // From script - defined by the problem
+   gaol::interval x_0(0,5), x_1(-7,5) ;   // From script - defined by the problem
    //--- Data structure for the gpu ---
    thrust::device_vector<interval_gpu<float>> gpu_interval_list ;
    thrust::device_vector<float>               gpu_interval_priority ;
@@ -109,6 +111,7 @@ int main()  {
    deque<thread> ManageThreads   ;
    vector<gaol::interval> MidPoints(dimension) ;
    int addedIntervalSize = 0;               // Holds information for threshold of gpu call
+   int count=0;
 
    TempQue.push_back(x_0) ;              // From script - initalise queue with starting intervals
    TempQue.push_back(x_1) ;
@@ -126,21 +129,29 @@ int main()  {
    gaol::interval PriTemp = cpu_Inclusion_Func_expr( (x_0.left() + x_0.right())/2 , (x_1.left() + x_1.right())/2 ) ;
    TempQue_priority.push_back(PriTemp.left()) ;
 
-   while( TempQue_priority.size()!= 0  || MainQue_priority.size()!=0 || ManageThreads.size()!=0) {
-	   printf("Debug: 6: Reached here: Temp_Queue_Size = %lu, Main_Queue_size = %lu\n", TempQue.size(), MainQue.size());
+
+   //-- ManageThreads commented until gpu comes alive
+   while( (int)TempQue_priority.size()> 0  || (int)MainQue_priority.size()>0 || (int)ManageThreads.size()>0) {
+       printf("Start: MainQue_priority = %d \n", (int)MainQue_priority.size());
+       printf("Start: TempQue_priority = %d \n", (int)TempQue_priority.size());
+       printf("Start: ManageThreads = %d \n", (int)ManageThreads.size());
+	//   printf("Debug: 6: Reached here: Temp_Queue_Size = %lu, Main_Queue_size = %lu\n", TempQue.size(), MainQue.size());
        cout << " Idiot!!... Terminate while :)...." << endl ;
-       if(syncFlag == 1 && ManageThreads.size() != 0) {   // gpu calls to be joined
+       if(USE_GPU==1 && syncFlag == 1 && ManageThreads.size() != 0 && count>=CPU_THRESHOLD) {   // gpu calls to be joined
 	       if(ManageThreads.front().joinable()) ManageThreads.front().join() ;
 		   syncFlag = 0 ;
+		   count = 0 ;
 		   ManageThreads.pop_front() ;
-		   MainQue.clear() ;
+		   //MainQue.clear() ;
+		   printf("1. gpu_interval_list_size = %lu \n", gpu_interval_list.size());
 		   for(int i=0; i < gpu_interval_list.size()/dimension; i++) {   // translate gpu return list to gaol
 		       for(int j=0; j< dimension; j++) {
 			       interval_gpu<float> ij_gpu = gpu_interval_list[i*dimension + j] ;
 				   gaol::interval ij(ij_gpu.lower(), ij_gpu.upper());
-				   MainQue.push_back(ij) ;
+				   MainQue.push_front(ij) ;
 			   }
-			   MainQue_priority.push_back(gpu_interval_priority[i]) ;
+			   MainQue_priority.push_front(gpu_interval_priority[i]) ;
+               printf("Update-1: MainQue_priority = %lu \n", MainQue_priority.size());
 		   }
 	  }
 	  if(TempQue.size() != 0) {
@@ -150,22 +161,27 @@ int main()  {
 	           MainQue.push_back(TempQue[i*dimension+j]) ;
 	        }
 	   	 MainQue_priority.push_back(TempQue_priority[i]) ;
+         printf("Update-2: MainQue_priority = %lu \n", MainQue_priority.size());
 	     }
 		 TempQue_priority.clear();
 		 TempQue.clear();
 	  }
-	  if( addedIntervalSize > CPU_THRESHOLD && ManageThreads.size()==0 ) {   // minimum number of new intervals to trigger gpu
+	  //if( addedIntervalSize > NEW_INTV_THRESHOLD && ManageThreads.size()==0 ) {   // minimum number of new intervals to trigger gpu
+	  if(USE_GPU==1 && (int)MainQue_priority.size() - CPU_THRESHOLD > NEW_INTV_THRESHOLD && ManageThreads.size()==0 ) {   // minimum number of new intervals to trigger gpu
               addedIntervalSize = 0 ;            // reset the interval counter
 			  gpu_interval_list.clear();
 			  gpu_interval_priority.clear();
-			  for(int i=0; i<MainQue.size()/dimension; i++) {
-			     for(int j=0; j<dimension; j++) {
-				    interval_gpu<float> ij(MainQue[i*dimension+j].left(), MainQue[i*dimension+j].right()) ;
-					gpu_interval_list.push_back(ij) ;
-					//cout << " Enter here " << gpu_interval_list.size() << endl ;
-				 }
-				 gpu_interval_priority.push_back(MainQue_priority[i]) ;
-		      }
+			    for(int i=CPU_THRESHOLD; i<(int)MainQue.size()/dimension; i++) {
+			       for(int j=0; j<dimension; j++) {
+			          interval_gpu<float> ij(MainQue[i*dimension+j].left(), MainQue[i*dimension+j].right()) ;
+			      	gpu_interval_list.push_back(ij) ;
+			      	//cout << " Enter here " << gpu_interval_list.size() << endl ;
+			       }
+			       gpu_interval_priority.push_back(MainQue_priority[i]) ;
+		        }
+				//--- Clear the intervals that has been provided to the gpu ---
+				MainQue.erase(MainQue.begin() + (CPU_THRESHOLD)*dimension , MainQue.end()) ;
+				MainQue_priority.erase(MainQue_priority.begin() + CPU_THRESHOLD, MainQue_priority.end()) ;
 				 /* KernelArray<interval_gpu<float>>*/ gpuMainQue = convertToKernel(gpu_interval_list);
 				 /* KernelArray<float>*/ gpuPriQue                = convertToKernel(gpu_interval_priority);
 		      ManageThreads.push_back(thread(gpuHandlerThread, gpuMainQue, gpuPriQue, dimension)) ; // Trigger the gpu thread
@@ -173,11 +189,16 @@ int main()  {
        
 	   fbest = returnMax(fbest, fbestTag.front());
 	   X.clear(); X1.clear(); X2.clear(); Xi.clear();
+	   //printf("MainQueueSize = %lu, TempQueueSize = %lu\n", MainQue_priority.size(), TempQue.size());
 	   for(int i=0; i<dimension; i++) {
-	       X.push_back(MainQue.front()); MainQue.pop_front(); MainQue_priority.pop_front();
+	       X.push_back(MainQue.front()); MainQue.pop_front(); 
 	   }
+	   MainQue_priority.pop_front();
+	   count++ ;
 	   FunctionBound = cpu_Inclusion_Func_expr( X[0], X[1] ) ; // possibly from script
 	   if ( FunctionBound.right() < fbest  ||  X[IntervalWidth(X)].width() <= intervalEpsilon || FunctionBound.width() <= outputEpsilon ) {
+	        printf("GetNextElement\n");
+			cout << "Current-Size = " << (int)MainQue_priority.size() << endl ;
 	   }
 	   else {
 	       for(int i=0; i<dimension; i++) {
@@ -195,10 +216,14 @@ int main()  {
 		   //-- The function expression needs manipulation from script
 		        float ei = cpu_Func_expr( Xi[i][0].width()/2 + Xi[i][0].left() ,
 		                                            Xi[i][1].width()/2 + Xi[i][1].left() );
+				printf("fbest = %f , Ei = %f\n", fbest, ei);
 			    if(ei > fbest) {
 				   fbest = ei ;
 				   bestbbInt = Xi[i] ;
 				}
+				cout << "Current Best Interval = " ;
+				for(int k=0; k<dimension; k++) cout << " " << Xi[i][k] ;
+				cout << endl ;
 			    for (int j=0; j< dimension; j++) {
 				   TempQue.push_back(Xi[i][j]) ;
 				}
