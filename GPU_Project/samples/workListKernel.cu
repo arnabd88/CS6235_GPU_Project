@@ -28,7 +28,7 @@ using namespace std ;
 int syncFlag=0 ;
 
 __host__  __device__  float returnMax( float a, float b) { if(a > b) return a ; else   return b ; }
-__host__  __device__  float returnMix( float a, float b) { if(a < b) return a ; else   return b ; }
+__host__  __device__  float returnMin( float a, float b) { if(a < b) return a ; else   return b ; }
        //--- Returns the dimension which has the largest width
 int IntervalWidth( vector<gaol::interval> X ) {
      if(X.size()==0) { printf("Error: Interval list empty!!!" ) ; exit(-1) ; }
@@ -108,7 +108,32 @@ __global__ void gpuKernel ( KernelArray<interval_gpu<float>> gpuMainQue, KernelA
    SharedIntDimSample[tix][tiy] = gpu_func_array_expr(localSampleList) ;
    __syncthreads();
 
-  //----- Prefix Scan for the values per tix and load in RandSampleList(reuse the allocated memory- size of dimension)
+  //----- Max reduce  for the values per tix and load in RandSampleList(reuse the allocated memory- size of dimension)
+  //----- Do a Max reduce ---
+  int size = K ;
+  for(int i=ceil((float)K/2) ; i>1; i = ceil((float)i/2)) {
+       if(tiy < i && tiy+i<size-1)
+	      SharedIntDimSample[tix][tiy] = returnMax(SharedIntDimSample[tix][tiy] ,
+		                                           SharedIntDimSample[tix][tiy+i]) ;
+	   size = i ;
+	      // SharedIntDimSample[tix][tiy] += SharedIntDimSample[tix][tiy + i] ;
+  __syncthreads() ;
+  }
+  if(K > 1) SharedIntDimSample[tix][0] = returnMax(SharedIntDimSample[tix][0],
+                                                   SharedIntDimSample[tix][1]) ;
+  __syncthreads() ;
+
+  //----- Max vaue across the dimensions ----
+  size = 0;
+  for(int i=ceil((float)DIM/2) ; i > 1; i = ceil((float)i/2)) {
+      if(tix < i && tix+i<size-1)
+	     SharedIntDimSample[tix][0] = returnMax(SharedIntDimSample[tix][0],
+		                                        SharedIntDimSample[tix+i][0]) ;
+	  size = i ;
+	  __syncthreads() ;
+  }
+  if(DIM > 1) SharedIntDimSample[0][0] = returnMax(SharedIntDimSample[0][0],
+                                                 SharedIntDimSample[1][0]) ;
 
   //----- The RandSampleList becomes the priority label array of SharedIntervalList -----
   //----- Sort these and terminate
