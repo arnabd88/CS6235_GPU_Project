@@ -460,5 +460,5 @@ close(WRITE);
 close(READ);
 
 system("/usr/local/cuda-7.5/bin/nvcc -I/usr/local/cuda-7.5/include/ -I/usr/local/cuda-7.5/samples/common/inc/ -I/usr/local/cuda-7.5/samples/6_Advanced/interval/ -g -Xcompiler -fopenmp --std=c++11 workListKernel.cu -I../../Gaol/gaol-4.2.0/gaol/.libs/ -L../../Gaol/gaol-4.2.0/gdtoa/.libs/ -I. -lgaol -lm -lultim -lgdtoa -lgomp");
-system("./a.out > ");
+system("./a.out > run.log");
 
