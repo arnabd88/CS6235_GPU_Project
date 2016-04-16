@@ -2,6 +2,29 @@ nvcc -Xcompiler -fopenmp --std=c++11 workListKernel.cu -I../../Gaol/gaol-4.2.0/g
 
 >> Instruction to run genKernel.pl
   1. Place the function and other details in a file named sample_input_file in this directory.
+  2. Make sure the sample_input_file contains ALL of the following fields in the same format (order immaterial) :
+   
+    -ie=<value>
+    -oe=<value>
+    -NUM_THREADS=<value>
+    -gpu_sample_count=<value>
+    -intervalThreshold=<value>
+    -cpuThreshold=<value>
+    -USE_GPU=<value>
+    -f "<function>"
+    -i "{<variables in single quotes followed by colon and their correspending intervals, each pair separated by commas>}"
+     
+    Example entry :   
+    -ie=0.001
+    -oe=0.001
+    -NUM_THREADS=4
+    -gpu_sample_count=10
+    -intervalThreshold=10
+    -cpuThreshold=4
+    -USE_GPU=1
+    -f "-y * z - x * a + y * b + z * c - b * c + x * (-x + y + z - a + b + c)"
+    -i "{'x' : (-10,10), 'y' : (-10,10), 'z' :(-10,10), 'a' : (-10,10), 'b' : (-10,10), 'c' : (-10,10)}"
+
   2. At the command prompt, run 
      @> ./genKernel.pl
   3. An output would be stored in workListKernel.cu
