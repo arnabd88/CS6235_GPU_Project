@@ -1,1 +1,8 @@
 nvcc -Xcompiler -fopenmp --std=c++11 workListKernel.cu -I../../Gaol/gaol-4.2.0/gaol/.libs/ -L../../Gaol/gaol-4.2.0/gdtoa/.libs/ -I. -lgaol -lm -lultim -lgdtoa -lgomp
+
+>> Instruction to run genKernel.pl
+  1. Place the function and other details in a file named sample_input_file in this directory.
+  2. At the command prompt, run 
+     @> ./genKernel.pl
+  3. An output would be stored in workListKernel.cu
+
