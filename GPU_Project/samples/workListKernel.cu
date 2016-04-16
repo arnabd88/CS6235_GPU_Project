@@ -18,7 +18,7 @@
 #define intervalEpsilon 0.001
 #define outputEpsilon 0.001
 #define K 10 // Sampling number
-#define DIM 2 // Dimension
+#define DIM 6 // Dimension
 
 #define NEW_INTV_THRESHOLD 10
 #define CPU_THRESHOLD 4

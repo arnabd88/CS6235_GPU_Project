@@ -135,7 +135,7 @@ print WRITE "#define NUM_THREADS $NUM_THREADS\n";
 print WRITE "#define intervalEpsilon $intervalEpsilon\n"; 
 print WRITE "#define outputEpsilon $outputEpsilon\n"; 
 print WRITE "#define K $K // Sampling number\n";
-print WRITE "#define DIM 2 // Dimension\n";
+print WRITE "#define DIM $varCount // Dimension\n";
 print WRITE "\n";
 print WRITE "#define NEW_INTV_THRESHOLD $NEW_INTV_THRESHOLD\n";
 print WRITE "#define CPU_THRESHOLD $CPU_THRESHOLD\n";
@@ -458,3 +458,7 @@ print WRITE "\n";
 #_ Close the handles\n";
 close(WRITE);
 close(READ);
+
+system("/usr/local/cuda-7.5/bin/nvcc -I/usr/local/cuda-7.5/include/ -I/usr/local/cuda-7.5/samples/common/inc/ -I/usr/local/cuda-7.5/samples/6_Advanced/interval/ -g -Xcompiler -fopenmp --std=c++11 workListKernel.cu -I../../Gaol/gaol-4.2.0/gaol/.libs/ -L../../Gaol/gaol-4.2.0/gdtoa/.libs/ -I. -lgaol -lm -lultim -lgdtoa -lgomp");
+system("./a.out > ");
+
