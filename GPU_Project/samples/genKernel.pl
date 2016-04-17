@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 #_ Name of input file
-my $filename = 'sample_input_file_1';
+my $filename = 'sample_input_file';
 
 #_ Declare the variables
 my $varCount = 0;
@@ -278,7 +278,19 @@ print WRITE "	   else {\n";
 print WRITE "	       //dim3 dimBlock(K, dimension);\n";
 print WRITE "		   dim3 dimBlock(dimension, K);\n";
 print WRITE "		   dim3 dimGrid(gpuPriQue._size);\n";
+print WRITE "\n";
+print WRITE "              // Initialize timer\n";
+print WRITE "              cudaEvent_t start,stop;\n";
+print WRITE "              float elapsed_time;\n";
+print WRITE "              cudaEventCreate(&start);\n";
+print WRITE "              cudaEventCreate(&stop);\n";
+print WRITE "              cudaEventRecord(start,0);\n";
 print WRITE "		   gpuKernel<<<dimGrid,dimBlock>>>(gpuMainQue, gpuPriQue, dimension) ;\n";
+print WRITE "              cudaEventRecord(stop);\n";
+print WRITE "              cudaEventSynchronize(stop);\n";
+print WRITE "              cudaEventElapsedTime(&elapsed_time,start, stop);\n"; 
+print WRITE "              printf(\"The operation was successful, time = %2.6f\\n\",elapsed_time);\n";
+print WRITE "\n";
 print WRITE "		   cudaDeviceSynchronize();\n";
 print WRITE "		   //thrust::device_vector<float> a_temp = *gpuPriQue._array ;\n";
 print WRITE "		  // thrust::sort(gpuPriQue._array[0], gpuPriQue._array.end[4]) ;\n";
