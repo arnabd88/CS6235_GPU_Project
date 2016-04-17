@@ -20,8 +20,8 @@
 #define K  10 // Sampling number
 #define DIM 2 // Dimension
 
-#define NEW_INTV_THRESHOLD 10
-#define CPU_THRESHOLD 4
+#define NEW_INTV_THRESHOLD 8
+#define CPU_THRESHOLD 12
 #define USE_GPU 1
 
 using namespace std ;
@@ -79,12 +79,12 @@ __device__ float gpu_func_array_expr ( float* var ) {
 }
 //End script
 
-__global__ void gpuKernel ( KernelArray<interval_gpu<float>> gpuMainQue, KernelArray<float> gpuPriQue, int dimension )
+__global__ void gpuKernel ( KernelArray<interval_gpu<double>> gpuMainQue, KernelArray<double> gpuPriQue, int dimension )
 {
    //printf("Testing ................\n");
-   __shared__ interval_gpu<float> SharedIntervalList[DIM] ; // Warning thrown due to blank constructor
-   __shared__ float RandSampleList[DIM] ;
-   __shared__ float SharedIntDimSample[DIM][K];
+   __shared__ interval_gpu<double> SharedIntervalList[DIM] ; // Warning thrown due to blank constructor
+   __shared__ double RandSampleList[DIM] ;
+   __shared__ double SharedIntDimSample[DIM][K];
    float localSampleList[DIM] ;
    int tix = threadIdx.x ; int tiy = threadIdx.y ;
    float chunkSize = 0.0 ;
@@ -158,8 +158,8 @@ __global__ void gpuKernel ( KernelArray<interval_gpu<float>> gpuMainQue, KernelA
 }
 
 //ManageThreads.push_back(thread(gpuHandlerThread, gpuMainQue, gpuPriQue, dimension)) ; // Trigger the gpu thread
-void gpuHandlerThread ( KernelArray<interval_gpu<float>> gpuMainQue, KernelArray<float> gpuPriQue, int dimension) {
-	   printf("Debug: 7: Got called...\n");
+void gpuHandlerThread ( KernelArray<interval_gpu<double>> gpuMainQue, KernelArray<double> gpuPriQue, int dimension) {
+	//   printf("Debug: 7: Got called...\n");
        if(K*dimension > 512) {
 	      cout << "Reduce the K value" << endl ;
 	   }
@@ -185,11 +185,11 @@ int main()  {
    gaol::init();
    omp_set_num_threads(NUM_THREADS);
    //--- Data structure for the gpu ---
-   thrust::device_vector<interval_gpu<float>> gpu_interval_list ;
-   thrust::device_vector<float>               gpu_interval_priority ;
+   thrust::device_vector<interval_gpu<double>> gpu_interval_list ;
+   thrust::device_vector<double>               gpu_interval_priority ;
    thrust::device_vector<float>               fbestTag ;
-   KernelArray<interval_gpu<float>>           gpuMainQue ;
-   KernelArray<float>                         gpuPriQue  ;             
+   KernelArray<interval_gpu<double>>           gpuMainQue ;
+   KernelArray<double>                         gpuPriQue  ;             
 
    //--- Data structure for the cpu ---
    float  fbest = numeric_limits<float>::min();
@@ -202,6 +202,7 @@ int main()  {
    vector<gaol::interval> MidPoints(dimension) ;
    int addedIntervalSize = 0;               // Holds information for threshold of gpu call
    int count=0;
+   int gpuSize=0;
 
    //From script
    TempQue.push_back(x_0) ;              // From script - initalise queue with starting intervals
@@ -235,32 +236,35 @@ int main()  {
 	       if(ManageThreads.front().joinable()) ManageThreads.front().join() ;
 		   loop_Counter++ ;
 		 //  if(loop_Counter==1) {
-		 cout << "After the re-written priority from gpu " << endl ;
-		 for(int i=0; i<(int)gpu_interval_priority.size(); i++) {
-		   interval_gpu<float> temp = gpu_interval_list[i] ;
-		   cout << temp.lower() << " : " << temp.upper() << " -- " << gpu_interval_priority[i] << endl  ;
-		   }
-		      cout << "GPU_QUEUE_SIZE = " << (int)gpu_interval_priority.size() << endl ;
+		 // cout << "After the re-written priority from gpu " << endl ;
+		 // for(int i=0; i<(int)gpu_interval_priority.size(); i++) {
+		 //   interval_gpu<double> temp = gpu_interval_list[i] ;
+		 //   cout << temp.lower() << " : " << temp.upper() << " -- " << gpu_interval_priority[i] << endl  ;
+		 //   }
+		      //cout << "GPU_QUEUE_SIZE = " << (int)gpu_interval_priority.size() << endl ;
+		      cout << "GPU_QUEUE_SIZE RECEIVED= " << gpuPriQue._size << endl ;
 		  // }
 		   thrust::stable_sort_by_key(gpu_interval_priority.begin(), gpu_interval_priority.end(), gpu_interval_list.begin()) ;
-		 cout << "After Sorting " << endl ;
-		 for(int i=0; i<(int)gpu_interval_priority.size(); i++) {
-		   interval_gpu<float> temp = gpu_interval_list[i] ;
-		   cout << temp.lower() << " : " << temp.upper() << " -- " << gpu_interval_priority[i] << endl  ;
-		  }
+		 // cout << "After Sorting " << endl ;
+		 // for(int i=0; i<(int)gpu_interval_priority.size(); i++) {
+		 //   interval_gpu<double> temp = gpu_interval_list[i] ;
+		 //   cout << temp.lower() << " : " << temp.upper() << " -- " << gpu_interval_priority[i] << endl  ;
+		 //  }
 		   syncFlag = 0 ;
 		   count = 0 ;
 		   ManageThreads.pop_front() ;
 		   //MainQue.clear() ;
 		   for(int i=0; i < (int)gpu_interval_list.size()/dimension; i++) {   // translate gpu return list to gaol
 		       for(int j=dimension-1; j>=0; j--) {
-			       interval_gpu<float> ij_gpu = gpu_interval_list[i*dimension + j] ;
+			       interval_gpu<double> ij_gpu = gpu_interval_list[i*dimension + j] ;
 				   gaol::interval ij(ij_gpu.lower(), ij_gpu.upper());
 				   MainQue.push_front(ij) ;
 			       MainQue_priority.push_front(gpu_interval_priority[i*dimension + j]) ;
 			   }
 			   //MainQue_priority.push_front(gpu_interval_priority[i]) ;
 		   }
+			  gpu_interval_priority.clear();
+			  gpu_interval_list.clear();
 	  }
 	  if((int)TempQue.size() != 0) {
 		// cout << " TempQue-Size = " << TempQue_priority.size() << endl ;
@@ -276,27 +280,29 @@ int main()  {
 		 TempQue.clear();
 	  }
 	  if(USE_GPU==1 && (int)MainQue_priority.size()/dimension - CPU_THRESHOLD > NEW_INTV_THRESHOLD && ManageThreads.size()==0 ) {   // minimum number of new intervals to trigger gpu
-			  gpu_interval_list.clear();
-			  gpu_interval_priority.clear();
+			  // gpu_interval_list.clear();
+			  // gpu_interval_priority.clear();
+			    cout << "MainQueSize = " << (int)MainQue.size() <<  endl ;
 			    for(int i=CPU_THRESHOLD; i<(int)MainQue.size()/dimension; i++) {
 			       for(int j=0; j<dimension; j++) {
-			          interval_gpu<float> ij(MainQue[i*dimension+j].left(), MainQue[i*dimension+j].right()) ;
+			          interval_gpu<double> ij(MainQue[i*dimension+j].left(), MainQue[i*dimension+j].right()) ;
 			      	gpu_interval_list.push_back(ij) ;
 			      	//cout << " Enter here " << gpu_interval_list.size() << endl ;
 			        gpu_interval_priority.push_back(MainQue_priority[i*dimension+j]) ;
 			       }
 			       //gpu_interval_priority.push_back(MainQue_priority[i]) ;
 		        }
-		        cout << "Starting  New GPU call of size " << gpu_interval_priority.size() << endl ;
-		        for(int i=0; i<(int)gpu_interval_priority.size(); i++) {
-				  interval_gpu<float> temp = gpu_interval_list[i] ;
-		          cout << temp.lower() << " : " << temp.upper() << " -- " << gpu_interval_priority[i] << endl  ;
-				}
+		        // cout << "Starting  New GPU call of size " << gpu_interval_priority.size() << endl ;
+		        // for(int i=0; i<(int)gpu_interval_priority.size(); i++) {
+				//   interval_gpu<double> temp = gpu_interval_list[i] ;
+		        //   cout << temp.lower() << " : " << temp.upper() << " -- " << gpu_interval_priority[i] << endl  ;
+				// }
 		       		//--- Clear the intervals that has been provided to the gpu ---
 				MainQue.erase(MainQue.begin() + (CPU_THRESHOLD)*dimension , MainQue.end()) ;
 				MainQue_priority.erase(MainQue_priority.begin() + (CPU_THRESHOLD)*dimension, MainQue_priority.end()) ;
 				 /* KernelArray<interval_gpu<float>>*/ gpuMainQue = convertToKernel(gpu_interval_list);
 				 /* KernelArray<float>*/ gpuPriQue                = convertToKernel(gpu_interval_priority);
+				 cout << " GPU_QUEUE_SIZE SENT = " <<  gpuPriQue._size << endl ;
 		      ManageThreads.push_back(thread(gpuHandlerThread, gpuMainQue, gpuPriQue, dimension)) ; // Trigger the gpu thread
 	   }
        
@@ -349,5 +355,11 @@ int main()  {
 		   }
 	   }
   }
+				printf("fbest = %f \n", fbest);
+				cout << "Current Best Interval = " ;
+				for(int k=0; k<dimension; k++) cout << " " << bestbbInt[k] ;
+				cout << endl ;
+
+
 }
 
