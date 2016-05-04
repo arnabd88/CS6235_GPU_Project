@@ -1,0 +1,19 @@
+ genKernel.pl 
+   - perl script to dump out cuda code as per the sample_input_file
+ sample_input_file
+   - contins the description of a sample_input_file
+ a.out
+   - executable to be run directly
+ workListKernel.cu
+   - main program
+ log
+   - output log for 6 variable
+
+   This program requires support of gaol interval arithmetic library.
+   Once gaol and its supporting APMath library has been installed and nvcc and its libraries are available in path
+
+   Run the following command to generate the executable:
+     >>  nvcc -Xcompiler -fopenmp --std=c++11 workListKernel.cu -lgaol -lm -lultim -lgdtoa -lgomp
+
+    once a.out is generated, execute a.out
+	>> ./a.out
